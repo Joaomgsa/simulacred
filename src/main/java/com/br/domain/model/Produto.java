@@ -6,11 +6,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 
+@Entity
 public class Produto {
 
     @Id
     @Column(name = "co_produto")
-    private Integer coProduto;
+    private Long coProduto;
 
     @Column(name = "no_produto", nullable = false, length = 200)
     private String noProduto;
@@ -30,11 +31,11 @@ public class Produto {
     @Column(name = "vr_maximo", nullable = false, precision = 18, scale = 2)
     private BigDecimal vrMaximo;
 
-    public Integer getCoProduto() {
+    public Long getCoProduto() {
         return coProduto;
     }
 
-    public void setCoProduto(Integer coProduto) {
+    public void setCoProduto(Long coProduto) {
         this.coProduto = coProduto;
     }
 

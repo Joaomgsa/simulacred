@@ -1,10 +1,16 @@
-package com.br.domain.dto;
+package com.br.domain.dto.response;
+
+import java.math.BigDecimal;
 
 public record ProdutoDTO(
         Long coProduto,
-        String no,
-        String descricao,
-        Double preco
+        String noProduto,
+        BigDecimal pcTaxaJuros,
+        Short nuMinimoParcelas,
+        Short nuMaximoParcelas,
+        BigDecimal vrMinimo,
+        BigDecimal vrMaximo
 ) {
-    // Construtor, getters e outros métodos podem ser adicionados aqui se necessário) {
+
 }
+
