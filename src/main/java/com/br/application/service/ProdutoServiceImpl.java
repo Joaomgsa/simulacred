@@ -3,9 +3,11 @@ package com.br.application.service;
 import com.br.domain.dto.response.ProdutoDTO;
 import com.br.domain.model.Produto;
 import com.br.domain.repository.ProdutoRepository;
+import com.br.exception.GeneralException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 
@@ -17,8 +19,25 @@ public class ProdutoServiceImpl implements ProdutoService {
 
 
     @Override
+    public Produto findByPrazoAndValor(Integer prazo, BigDecimal valor) {
+        try {
+            return produtoRepository.findByPrazoAndValor(prazo, valor)
+                    .orElseThrow(() -> new GeneralException(
+                            String.format("Nenhum produto encontrado para prazo de %d meses e valor de R$ %.2f",
+                                    prazo, valor)
+                    ));
+        } catch (Exception e) {
+            if (e instanceof GeneralException) {
+                throw e;
+            }
+            throw new GeneralException("Erro ao buscar produto: " + e.getMessage());
+        }
+    }
+
+    @Override
     public List<ProdutoDTO> getProdutos() {
-         return mapearParaDTO(produtoRepository.listAll());
+        List<Produto> produtos = produtoRepository.listAll();
+        return mapearParaDTO(produtos);
     }
 
     // mapear objeto entity para dto

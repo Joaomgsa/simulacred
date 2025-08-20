@@ -1,13 +1,18 @@
 package com.br.domain.model;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "simulacao")
 public class Simulacao {
 
+    //Verificar como formar a chave no banco
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "nu_simulacao")
@@ -31,6 +36,30 @@ public class Simulacao {
 
     @Column(name = "vr_parcela", precision = 18, scale = 2)
     private BigDecimal vrParcela;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 
     public Simulacao() {}
 
