@@ -12,4 +12,6 @@ public interface ProdutoService {
     public List<ProdutoDTO> getProdutos();
 
     public Produto findByPrazoAndValor(Integer prazo, BigDecimal valor);
+
+    public ProdutoDTO filtrarProduto(Integer prazo, BigDecimal valor);
 }

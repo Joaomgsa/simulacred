@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @Table(name = "simulacao")
 public class Simulacao {
 
-    //Verificar como formar a chave no banco
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "nu_simulacao")

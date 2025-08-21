@@ -18,8 +18,7 @@ public class ProdutoRepository implements PanacheRepository<Produto> {
     public Optional<Produto> findByPrazoAndValor(Integer prazo, BigDecimal valor) {
         return find("SELECT p FROM Produto p WHERE " +
                 "p.nuMinimoParcelas <= ?1 AND p.nuMaximoParcelas >= ?1 AND " +
-                "p.vrMinimo <= ?2 AND p.vrMaximo >= ?2 AND " +
-                "p.stAtivo = true", prazo, valor)
+                "p.vrMinimo <= ?2 AND p.vrMaximo >= ?2 ", prazo, valor)
                 .firstResultOptional();
     }
 }

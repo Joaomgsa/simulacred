@@ -9,6 +9,7 @@ import jakarta.inject.Inject;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 
 @ApplicationScoped
@@ -52,6 +53,30 @@ public class ProdutoServiceImpl implements ProdutoService {
                         produto.getVrMinimo(),
                         produto.getVrMaximo()))
                 .toList();
+    }
+
+    @Override
+    public ProdutoDTO filtrarProduto(Integer prazo, BigDecimal valor) {
+        return produtoRepository.findByPrazoAndValor(prazo, valor)
+                .map(this::mapearParaDTO)
+                .orElseThrow(() -> new GeneralException(
+                        String.format("Nenhum produto encontrado para prazo de %d meses e valor de R$ %.2f",
+                                prazo, valor)
+                ));
+    }
+
+
+    // mapear RETORNO DA QUERY PARA DTO
+    public ProdutoDTO mapearParaDTO(Produto produto) {
+        return new ProdutoDTO(
+                produto.getCoProduto().longValue(),
+                produto.getNoProduto(),
+                produto.getPcTaxaJuros(),
+                produto.getNuMinimoParcelas(),
+                produto.getNuMaximoParcelas(),
+                produto.getVrMinimo(),
+                produto.getVrMaximo()
+        );
     }
 
 }
