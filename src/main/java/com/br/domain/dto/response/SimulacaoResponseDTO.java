@@ -7,10 +7,10 @@ import java.util.List;
 
 public record SimulacaoResponseDTO(
         @JsonProperty("idSimulacao")
-        Long idSimulacao,
+        String idSimulacao,
 
         @JsonProperty("codigoProduto")
-        Integer codigoProduto,
+        String codigoProduto,
 
         @JsonProperty("descricaoProduto")
         String descricaoProduto,

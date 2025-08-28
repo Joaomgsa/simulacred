@@ -1,10 +1,9 @@
 package com.br.application.service;
 
 import com.br.domain.dto.request.SimulacaoRequestDTO;
-import com.br.domain.dto.response.ParcelaDTO;
-import com.br.domain.dto.response.ProdutoDTO;
-import com.br.domain.dto.response.ResultadoSimulacaoDTO;
-import com.br.domain.dto.response.SimulacaoResponseDTO;
+import com.br.domain.dto.response.*;
+import com.br.domain.model.ParcelaPrice;
+import com.br.domain.model.ParcelaSac;
 import com.br.domain.model.Produto;
 import com.br.domain.model.Simulacao;
 import com.br.domain.repository.SimulacaoRepository;
@@ -13,11 +12,13 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
+
+
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
+
 
 @ApplicationScoped
 public class SimulacaoServiceImpl implements SimulacaoService {
@@ -26,16 +27,15 @@ public class SimulacaoServiceImpl implements SimulacaoService {
     SimulacaoRepository simulacaoRepository;
 
     @Inject
-    ParcelaService parcelaService;
+    ParcelaSacService parcelaSacService;
+
+    @Inject
+    ParcelaPriceService parcelaPriceService;
 
     @Inject
     ProdutoService produtoService;
 
 
-    @Override
-    public void validarSimulacao(SimulacaoRequestDTO simulacaoRequestDTO){
-            //
-    };
 
     @Override
     @Transactional
@@ -47,81 +47,160 @@ public class SimulacaoServiceImpl implements SimulacaoService {
 
         NegocioException.throwIf(prod == null, "Produto não encontrado para o prazo e valor informados.");
 
-        parcelaService.calcularParcelas(simulacaoRequest, prod);
-
         // registrar a simulação no banco de dados
-        persistirSimulacao(simulacaoRequest, prod);
+        Simulacao simulacaoPersistida = persistirSimulacao(simulacaoRequest, prod);
 
 
+
+        SimulacaoRequestDTO requestDtoComId = simulacaoRequest.withIdSimulacao(
+                simulacaoPersistida.getNuSimulacao().toString()
+        );
         // chamar metodo de calculo parcelas SAC
+
+        List<ParcelaSac> parcelaSacs = parcelaSacService.calcularParcelas(requestDtoComId, prod);
 
         // chamar metodo de calculo parcelas PRICE
 
-        SimulacaoResponseDTO mockResponse = criarMockResponse();
+        List<ParcelaPrice> parcelasPrice = parcelaPriceService.calcularParcelas(requestDtoComId, prod);
 
-        System.out.println("Simulação realizada com sucesso: " + mockResponse);
-        return mockResponse;
+
+        return montarResponseSimulacao(parcelaSacs,
+                parcelasPrice,
+                simulacaoPersistida,
+                prod);
     }
 
 
-    private void persistirSimulacao(SimulacaoRequestDTO request, Produto produto) {
+    @Override
+    public PaginatedResponseDTO<SimulacaoListaResponseDTO> listarSimulacoes(int pagina, int tamanho) {
+        List<SimulacaoListaResponseDTO> simulacoes = simulacaoRepository.findSimulacoesResumo(pagina - 1, tamanho);
+        long totalRegistros = simulacaoRepository.countSimulacoes();
+
+        return new PaginatedResponseDTO<>(
+                pagina,
+                (int) totalRegistros,
+                tamanho,
+                simulacoes
+        );
+    }
+
+    @Override
+    public RelatorioSimulacaoResponseDTO obterRelatorioSimulacoes(LocalDate dataReferencia) {
+        List<SimulacaoPorProdutoDTO> simulacoes = simulacaoRepository.findSimulacoesPorDataProduto(dataReferencia);
+        return new RelatorioSimulacaoResponseDTO(dataReferencia, simulacoes);
+    }
+
+    private Simulacao persistirSimulacao(SimulacaoRequestDTO request, Produto produto) {
         Simulacao simulacao = new Simulacao();
         simulacao.setVrSimulacao(request.valorDesejado());
         simulacao.setPrSimulacao(request.prazo());
         simulacao.setProduto(produto);
         simulacao.setCreatedAt(LocalDateTime.now());
+        simulacaoRepository.persistAndFlush(simulacao);
 
-        simulacaoRepository.persist(simulacao);
+        return simulacao;
     }
 
-    //vai retornar as parcelas do tipo SAC
-    @Override
-    public void CalcularParcelaSac() {
-        // Implementação da lógica para calcular a parcela SAC
+
+
+
+
+    private String criarIdSimulacao(Simulacao simulacao){
+        String ano = String.valueOf(simulacao.getCreatedAt().getYear());
+        String mes = String.format("%02d", simulacao.getCreatedAt().getMonthValue());
+        return ano + mes + simulacao.getNuSimulacao();
     }
 
-    // vai retornar as parcelas do tipo PRICE
-    @Override
-    public void CalcularParcelaPrice() {
-        // Implementação da lógica para calcular a parcela SAC
-    }
+    private SimulacaoResponseDTO montarResponseSimulacao(List<ParcelaSac> parcelaSacs,
+                                                            List<ParcelaPrice> parcelasPrice,
+                                                         Simulacao simulacao,
+                                                         Produto produto) {
 
-    @Override
-    public void SumarizarValores() {
-        // Implementação da lógica para calcular a parcela SAC
-    }
+        // Converter parcelas SAC para DTO
+        List<ParcelaDTO> parcelasSacDTO = parcelaSacs.stream()
+                .map(this::converterParcelaSacParaDTO)
+                .toList();
 
-    private SimulacaoResponseDTO criarMockResponse() {
-        // Parcelas SAC
-        List<ParcelaDTO> parcelasSAC = Arrays.asList(
-                new ParcelaDTO(1, new BigDecimal("180.00"), new BigDecimal("16.11"), new BigDecimal("196.11")),
-                new ParcelaDTO(2, new BigDecimal("180.00"), new BigDecimal("12.89"), new BigDecimal("192.89")),
-                new ParcelaDTO(3, new BigDecimal("180.00"), new BigDecimal("9.67"), new BigDecimal("189.67")),
-                new ParcelaDTO(4, new BigDecimal("180.00"), new BigDecimal("6.44"), new BigDecimal("186.44")),
-                new ParcelaDTO(5, new BigDecimal("180.00"), new BigDecimal("3.22"), new BigDecimal("183.22"))
-        );
+        // Converter parcelas PRICE para DTO
+        List<ParcelaDTO> parcelasPriceDTO = parcelasPrice.stream()
+                .map(this::converterParcelaPriceParaDTO)
+                .toList();
 
-        // Parcelas PRICE
-        List<ParcelaDTO> parcelasPRICE = Arrays.asList(
-                new ParcelaDTO(1, new BigDecimal("173.67"), new BigDecimal("16.11"), new BigDecimal("189.78")),
-                new ParcelaDTO(2, new BigDecimal("176.78"), new BigDecimal("13.00"), new BigDecimal("189.78")),
-                new ParcelaDTO(3, new BigDecimal("179.94"), new BigDecimal("9.84"), new BigDecimal("189.78")),
-                new ParcelaDTO(4, new BigDecimal("183.16"), new BigDecimal("6.62"), new BigDecimal("189.78")),
-                new ParcelaDTO(5, new BigDecimal("186.44"), new BigDecimal("3.34"), new BigDecimal("189.78"))
-        );
 
-        // Resultados de simulação
-        List<ResultadoSimulacaoDTO> resultados = Arrays.asList(
-                new ResultadoSimulacaoDTO("SAC", parcelasSAC),
-                new ResultadoSimulacaoDTO("PRICE", parcelasPRICE)
-        );
+        // Calcular valores totais SAC
+        ResultadoSimulacaoDTO resultadoSac = calcularResultadoSac(parcelaSacs);
+
+        // Calcular valores totais PRICE
+        ResultadoSimulacaoDTO resultadoPrice = calcularResultadoPrice(parcelasPrice);
+
+        // Criar lista com ambos os resultados
+        List<ResultadoSimulacaoDTO> resultados = List.of(resultadoSac, resultadoPrice);
+
+        String idSimulacao = criarIdSimulacao(simulacao);
+
 
         return new SimulacaoResponseDTO(
-                20180702L,
-                1,
-                "Produto 1",
-                new BigDecimal("0.0179"),
+                idSimulacao,
+                produto.getCoProduto().toString(),
+                produto.getNoProduto(),
+                produto.getPcTaxaJuros(),
                 resultados
         );
     }
+
+    private ParcelaDTO converterParcelaSacParaDTO(ParcelaSac parcela) {
+        return new ParcelaDTO(
+                parcela.getNuParcela(),
+                calcularAmortizacao(parcela), // método auxiliar para calcular amortização
+                parcela.getVrJuros(),
+                parcela.getVrPrestacao()
+        );
+    }
+
+    private ResultadoSimulacaoDTO calcularResultadoSac(List<ParcelaSac> parcelas) {
+
+        List<ParcelaDTO> par = parcelas.stream()
+                .map(this::converterParcelaSacParaDTO)
+                .toList();
+
+        return new ResultadoSimulacaoDTO(
+                "SAC",
+                par
+        );
+    }
+
+    private BigDecimal calcularAmortizacao(ParcelaSac parcela) {
+        // Amortização = Prestação - Juros
+        return parcela.getVrPrestacao().subtract(parcela.getVrJuros());
+    }
+
+    private ParcelaDTO converterParcelaPriceParaDTO(Object parcela) {
+        if (parcela instanceof ParcelaPrice) {
+            ParcelaPrice p = (ParcelaPrice) parcela;
+            return new ParcelaDTO(
+                    p.getNuParcela(),
+                    calcularAmortizacaoPrice(p), // método auxiliar para calcular amortização
+                    p.getVrJuros(),
+                    p.getVrPrestacao()
+            );
+        }
+        throw new IllegalArgumentException("Tipo de parcela inválido para conversão.");
+    }
+
+    private ResultadoSimulacaoDTO calcularResultadoPrice(List<?> parcelas) {
+
+        List<ParcelaDTO> par = parcelas.stream()
+                .map(this::converterParcelaPriceParaDTO)
+                .toList();
+
+        return new ResultadoSimulacaoDTO(
+                "PRICE",
+                par
+        );
+    }
+    private BigDecimal calcularAmortizacaoPrice(ParcelaPrice parcela) {
+        // Amortização = Prestação - Juros
+        return parcela.getVrPrestacao().subtract(parcela.getVrJuros());
+    }
+
 }

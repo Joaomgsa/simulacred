@@ -1,21 +1,68 @@
 package com.br.application.service;
 
 import com.br.domain.dto.request.SimulacaoRequestDTO;
+import com.br.domain.model.ParcelaPrice;
 import com.br.domain.model.Produto;
+import com.br.domain.repository.ParcelaPriceRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.List;
 
 @ApplicationScoped
-public class ParcelaPriceServiceImpl {
+public class ParcelaPriceServiceImpl implements ParcelaPriceService {
 
+    @Inject
+    ParcelaPriceRepository parcelaPriceRepository;
 
-    public void calcularParcelas(SimulacaoRequestDTO dto, Produto produto) {
-        // Implementação do cálculo das parcelas no sistema SAC
-        // Aqui você pode adicionar a lógica específica para o cálculo das parcelas
-        // utilizando o método SAC (Sistema de Amortização Constante).
+    @Override
+    public List<ParcelaPrice> calcularParcelas(SimulacaoRequestDTO dto, Produto produto) {
+        List<ParcelaPrice> parcelasPrice = new ArrayList<>();
 
-        System.out.println("Calculando parcelas usando o método SAC...");
-        // Exemplo de lógica de cálculo (substitua com a lógica real)
-        // double valorParcela = calcularValorParcela();
-        // System.out.println("Valor da parcela: " + valorParcela);
+        BigDecimal valorFinanciado = dto.valorDesejado();
+        BigDecimal txJurosMensal = produto.getPcTaxaJuros().divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP);
+        int numeroParcelas = dto.prazo();
+
+        // Fórmula da prestação PRICE: PMT = PV * (i * (1+i)^n) / ((1+i)^n - 1)
+        BigDecimal umMaisJuros = BigDecimal.ONE.add(txJurosMensal);
+        BigDecimal umMaisJurosPotencia = umMaisJuros.pow(numeroParcelas);
+
+        BigDecimal prestacaoPrice = valorFinanciado
+                .multiply(txJurosMensal)
+                .multiply(umMaisJurosPotencia)
+                .divide(umMaisJurosPotencia.subtract(BigDecimal.ONE), 2, RoundingMode.HALF_UP);
+
+        BigDecimal saldoDevedor = valorFinanciado;
+
+        for (int i = 1; i <= numeroParcelas; i++) {
+            // Juros sobre saldo devedor atual
+            BigDecimal juros = saldoDevedor.multiply(txJurosMensal).setScale(2, RoundingMode.HALF_UP);
+
+            // Amortização = Prestação - Juros (variável no PRICE)
+            BigDecimal amortizacao = prestacaoPrice.subtract(juros);
+
+            ParcelaPrice parcelaPrice = new ParcelaPrice(
+                    Long.valueOf(dto.idSimulacao()),
+                    i,
+                    saldoDevedor,
+                    juros,
+                    prestacaoPrice
+            );
+
+            parcelasPrice.add(parcelaPrice);
+
+            // Reduzir saldo devedor
+            saldoDevedor = saldoDevedor.subtract(amortizacao);
+
+            if (saldoDevedor.compareTo(BigDecimal.ZERO) < 0) {
+                saldoDevedor = BigDecimal.ZERO;
+            }
+        }
+
+        parcelaPriceRepository.persist(parcelasPrice);
+        return parcelasPrice;
     }
 }

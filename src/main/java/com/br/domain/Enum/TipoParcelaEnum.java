@@ -1,4 +1,6 @@
 package com.br.domain.Enum;
 
-public class TipoParcelaEnum {
+public enum TipoParcelaEnum {
+    SAC,
+    PRICE
 }

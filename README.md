@@ -1,84 +1,224 @@
-# simulacred
+# Projeto de Simulação Financeira
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+Projeto Spring Boot/Quarkus para simulação de financiamentos com diferentes tipos de amortização (SAC e Price).
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+## Pré-requisitos
 
-## Running the application in dev mode
+- Java 17+
+- Docker e Docker Compose
+- Maven 3.8+
 
-You can run your application in dev mode that enables live coding using:
+## Configuração do Ambiente
 
-```shell script
+### 1. Subindo o Banco de Dados com Docker
+
+Crie um arquivo `docker-compose.yml` na raiz do projeto:
+
+```yaml
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    container_name: simulacao-db
+    environment:
+      POSTGRES_DB: simulacao_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts:/docker-entrypoint-initdb.d
+
+volumes:
+  postgres_data:
+```
+
+**Subir o container:**
+
+```bash
+docker-compose up -d
+```
+
+### 2. Scripts de Banco de Dados
+
+Crie a pasta `scripts/` na raiz do projeto e adicione os arquivos SQL:
+
+#### `scripts/01-create-tables.sql`
+
+```sql
+-- Criação das tabelas
+CREATE TABLE produto (
+    co_produto BIGSERIAL PRIMARY KEY,
+    no_produto VARCHAR(255) NOT NULL,
+    pc_taxa_juros DECIMAL(10,4) NOT NULL
+);
+
+CREATE TABLE simulacao (
+    nu_simulacao BIGSERIAL PRIMARY KEY,
+    vr_simulacao DECIMAL(15,2) NOT NULL,
+    pr_simulacao INTEGER NOT NULL,
+    co_produto BIGINT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (co_produto) REFERENCES produto(co_produto)
+);
+
+CREATE TABLE parcela_sac (
+    id BIGSERIAL PRIMARY KEY,
+    nu_simulacao BIGINT NOT NULL,
+    nu_parcela INTEGER NOT NULL,
+    vr_prestacao DECIMAL(15,2) NOT NULL,
+    vr_juros DECIMAL(15,2) NOT NULL,
+    vr_amortizacao DECIMAL(15,2) NOT NULL,
+    vr_saldo DECIMAL(15,2) NOT NULL,
+    FOREIGN KEY (nu_simulacao) REFERENCES simulacao(nu_simulacao)
+);
+
+CREATE TABLE parcela_price (
+    id BIGSERIAL PRIMARY KEY,
+    nu_simulacao BIGINT NOT NULL,
+    nu_parcela INTEGER NOT NULL,
+    vr_prestacao DECIMAL(15,2) NOT NULL,
+    vr_juros DECIMAL(15,2) NOT NULL,
+    vr_amortizacao DECIMAL(15,2) NOT NULL,
+    vr_saldo DECIMAL(15,2) NOT NULL,
+    FOREIGN KEY (nu_simulacao) REFERENCES simulacao(nu_simulacao)
+);
+```
+
+#### `scripts/02-insert-data.sql`
+
+```sql
+-- Inserção de dados de exemplo
+INSERT INTO produto (no_produto, pc_taxa_juros) VALUES
+('Crédito Consignado', 2.50),
+('Financiamento Imobiliário', 8.75),
+('Crédito Pessoal', 15.90);
+
+INSERT INTO simulacao (vr_simulacao, pr_simulacao, co_produto) VALUES
+(50000.00, 24, 1),
+(300000.00, 360, 2),
+(15000.00, 12, 3);
+
+-- Exemplo de parcelas SAC para simulação 1
+INSERT INTO parcela_sac (nu_simulacao, nu_parcela, vr_prestacao, vr_juros, vr_amortizacao, vr_saldo) VALUES
+(1, 1, 2291.67, 1250.00, 2083.33, 47916.67),
+(1, 2, 2265.63, 1197.92, 2083.33, 45833.33);
+
+-- Exemplo de parcelas Price para simulação 2
+INSERT INTO parcela_price (nu_simulacao, nu_parcela, vr_prestacao, vr_juros, vr_amortizacao, vr_saldo) VALUES
+(2, 1, 2640.85, 2187.50, 453.35, 299546.65),
+(2, 2, 2640.85, 2184.18, 456.67, 299090.00);
+```
+
+### 3. Configuração da Aplicação
+
+#### `application.properties`
+
+```properties
+# Configuração do banco de dados
+quarkus.datasource.db-kind=postgresql
+quarkus.datasource.username=admin
+quarkus.datasource.password=admin123
+quarkus.datasource.jdbc.url=jdbc:postgresql://localhost:5432/simulacao_db
+
+# Configuração do Hibernate
+quarkus.hibernate-orm.database.generation=none
+quarkus.hibernate-orm.log.sql=true
+
+# Configuração da aplicação
+quarkus.http.port=8080
+quarkus.log.level=INFO
+```
+
+## Executando a Aplicação
+
+### 1. Instalar dependências
+
+```bash
+mvn clean install
+```
+
+### 2. Executar no modo desenvolvimento (Quarkus)
+
+```bash
+mvn quarkus:dev
+```
+
+Ou alternativamente:
+
+```bash
 ./mvnw quarkus:dev
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
+### 3. Executar em produção
 
-## Packaging and running the application
-
-The application can be packaged using:
-
-```shell script
-./mvnw package
+```bash
+mvn clean package
+java -jar target/quarkus-app/quarkus-run.jar
 ```
 
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
-Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
+## Endpoints da API
 
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
-
-If you want to build an _über-jar_, execute the following command:
-
-```shell script
-./mvnw package -Dquarkus.package.jar.type=uber-jar
+### Listar Simulações (com paginação)
+```
+GET /api/simulacoes?page=0&size=10
 ```
 
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
-
-## Creating a native executable
-
-You can create a native executable using:
-
-```shell script
-./mvnw package -Dnative
+### Relatório por Produto e Data
+```
+GET /api/simulacoes/relatorio?dataReferencia=2024-01-15
 ```
 
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
+## Comandos Úteis
 
-```shell script
-./mvnw package -Dnative -Dquarkus.native.container-build=true
+### Verificar status do banco
+```bash
+docker exec -it simulacao-db psql -U admin -d simulacao_db -c "\dt"
 ```
 
-You can then execute your native executable with: `./target/simulacred-1.0-SNAPSHOT-runner`
+### Parar os containers
+```bash
+docker-compose down
+```
 
-If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
+### Logs da aplicação
+```bash
+docker-compose logs -f postgres
+```
 
-## Related Guides
+### Rebuild completo
+```bash
+docker-compose down -v
+docker-compose up -d
+mvn clean install
+mvn quarkus:dev
+```
 
-- Hibernate Validator ([guide](https://quarkus.io/guides/validation)): Validate object properties (field, getter) and method parameters for your beans (REST, CDI, Jakarta Persistence)
-- OpenTelemetry ([guide](https://quarkus.io/guides/opentelemetry)): Use OpenTelemetry to trace services
-- Hibernate ORM with Panache ([guide](https://quarkus.io/guides/hibernate-orm-panache)): Simplify your persistence code for Hibernate ORM via the active record or the repository pattern
-- JDBC Driver - PostgreSQL ([guide](https://quarkus.io/guides/datasource)): Connect to the PostgreSQL database via JDBC
+## Estrutura do Projeto
 
-## Provided Code
+```
+src/
+├── main/
+│   ├── java/
+│   │   └── com/br/
+│   │       ├── domain/
+│   │       │   ├── dto/
+│   │       │   ├── model/
+│   │       │   └── repository/
+│   │       └── resource/
+│   └── resources/
+│       └── application.properties
+scripts/
+├── 01-create-tables.sql
+└── 02-insert-data.sql
+docker-compose.yml
+```
 
-### Hibernate ORM
+## Tecnologias Utilizadas
 
-Create your first JPA entity
-
-[Related guide section...](https://quarkus.io/guides/hibernate-orm)
-
-[Related Hibernate with Panache section...](https://quarkus.io/guides/hibernate-orm-panache)
-
-
-### REST
-
-Easily start your REST Web Services
-
-[Related guide section...](https://quarkus.io/guides/getting-started-reactive#reactive-jax-rs-resources)
-
-### RESTEasy JAX-RS
-
-Easily start your RESTful Web Services
-
-[Related guide section...](https://quarkus.io/guides/getting-started#the-jax-rs-resources)
+- **Quarkus** - Framework Java nativo
+- **Hibernate ORM with Panache** - ORM e repositórios
+- **PostgreSQL** - Banco de dados relacional
+- **Docker** - Containerização
+- **Maven** - Gerenciamento de dependências

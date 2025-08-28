@@ -1,4 +1,10 @@
 package com.br.domain.dto.response;
 
-public record PaginatedResponseDTO() {
-}
+import java.util.List;
+
+public record PaginatedResponseDTO<T>(
+        int pagina,
+        int qtdRegistros,
+        int qtdRegistrosPagina,
+        List<T> registros
+) {}
