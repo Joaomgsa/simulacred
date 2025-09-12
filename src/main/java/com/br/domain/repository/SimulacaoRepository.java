@@ -71,7 +71,7 @@ public class SimulacaoRepository implements PanacheRepository<Simulacao> {
     }
 
     public long countSimulacoes() {
-        return entityManager.createQuery("SELECT COUNT(s) FROM Simulacao s", Long.class)
+        return getEntityManager().createQuery("SELECT COUNT(s) FROM Simulacao s", Long.class)
                 .getSingleResult();
     }
 }
